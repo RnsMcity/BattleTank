@@ -35,7 +35,8 @@ void ATankPlayerController::AimTowardsCrosshair() {
 
 	FVector HitLocation; // Out parameter
 	if (GetSightRayHitLocation(HitLocation)) { 
-		UE_LOG(LogTemp, Warning, TEXT("HitLocation: %s"), *HitLocation.ToString());
+		GetControlledTank()->AimAt(HitLocation);
+
 		// TODO: Tell controlled tank to aim at this point
 		
 		// Get world location of linetrace through crosshair
@@ -47,28 +48,65 @@ void ATankPlayerController::AimTowardsCrosshair() {
 
 // Get world location of linetrace through crosshair, returns if hits landscape
 bool ATankPlayerController::GetSightRayHitLocation(FVector& OutHitLocation) const {
-	// Find the crosshair position
+	// Find the crosshair position in pixel co-ordinates
 	int32 ViewportSizeX, ViewportSizeY;
 	GetViewportSize(ViewportSizeX, ViewportSizeY);
-
+	
 	auto ScreenLocation = FVector2D(ViewportSizeX * CrosshairXLocation, ViewportSizeY * CrosshairYLocation);
-	UE_LOG(LogTemp, Warning, TEXT("ScreenLocation: %s"), *ScreenLocation.ToString());
-		// De-project the screen position of the crosshair to a world direction
-		// linetrace along that look direction, and see what we hit (up to max range)
+	FVector LookDirection;
+	if (GetLookDirection(ScreenLocation, LookDirection)) {
+		// Linetrace along that look direction, and see what we hit (up to max range)
+		// GetLookVectorHitLocation(...);
+		GetLookVectorHitLocation(LookDirection, OutHitLocation);
+		return true;
+	}
+	//UE_LOG(LogTemp, Warning, TEXT("ScreenLocation: %s"), *ScreenLocation.ToString());
+		
+	//OutHitLocation = GetBarrelLineTraceEnd();
 
-	DrawDebugLine(
-		GetWorld(),
-		GetBarrelLineTraceStart(),
-		GetBarrelLineTraceEnd(),
-		FColor(255, 0, 0),
-		false,
-		0.0f,
-		0,
-		2.0f
+	return false;
+}
+
+bool ATankPlayerController::GetLookDirection(FVector2D ScreenLocation, FVector& LookDirection) const {
+	FVector WorldLocation;
+	
+	// De-project the screen position of the crosshair to a world direction
+	return DeprojectScreenPositionToWorld(
+		ScreenLocation.X, 
+		ScreenLocation.Y, 
+		WorldLocation, 
+		LookDirection
 	);
+}
 
-	OutHitLocation = GetBarrelLineTraceEnd();
+bool ATankPlayerController::GetLookVectorHitLocation(FVector LookDirection, FVector& OutHit) const {
+	FHitResult HitResult;
+	auto StartLocation = PlayerCameraManager->GetCameraLocation();
+	auto StopLocation = StartLocation + (LookDirection * LineTraceRange);
 
+	// if line trace succeeds ... then set hit location, return true
+	if (GetWorld()->LineTraceSingleByChannel(
+		HitResult,
+		StartLocation,
+		StopLocation,
+		ECollisionChannel::ECC_Visibility)
+	) {
+		OutHit = HitResult.Location;
+
+		DrawDebugLine(
+			GetWorld(),
+			StartLocation,
+			StopLocation,
+			FColor(255, 0, 0),
+			false,
+			0.0f,
+			0,
+			5.0f
+		);
+
+		return true;
+	}
+	
 	return false;
 }
 
@@ -106,35 +144,3 @@ FVector ATankPlayerController::GetBarrelLineTraceEnd() const {
 	2.0f
 	);*/
 }
-
-//DrawDebugLine(
-//	GetWorld(),
-//	PlayerViewPointLocation,
-//	LineTraceEnd,
-//	FColor(255, 0, 0),
-//	false,
-//	0.0f,
-//	0,
-//	2.0f
-//	);
-//
-//GetWorld()->LineTraceSingleByObjectType(
-//	OUT HitResult,
-//	GetReachLineStart(),
-//	GetReachLineEnd(),
-//	FCollisionObjectQueryParams(ECollisionChannel::ECC_PhysicsBody),
-//	TraceParameters
-//);
-//
-///// Setup query parameters
-//FCollisionQueryParams TraceParameters(FName(TEXT("")), false, GetOwner());
-//
-/////  Line-trace (AKA Ray-casting) out to reach distance
-//FHitResult HitResult;
-//GetWorld()->LineTraceSingleByObjectType(
-//	OUT HitResult,
-//	GetReachLineStart(),
-//	GetReachLineEnd(),
-//	FCollisionObjectQueryParams(ECollisionChannel::ECC_PhysicsBody),
-//	TraceParameters
-//);
